@@ -110,7 +110,7 @@ def solve_SIRD2COVID(params):
     
     # 记录训练日志
     log_fileout = open(os.path.join(params['FolderName'], 'log_train.txt'), 'w')
-    # dataUtils.dictionary_out2file2(params, log_fileout)
+    dataUtils.dictionary_out2file2(params, log_fileout)
 
     # 网络初始化
     if params['sird_network'].upper() == 'DNN_FOURIERBASE':

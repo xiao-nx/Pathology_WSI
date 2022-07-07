@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import DNN_tools
 
 def load_data(fileName, N=3458790):
     '''
@@ -88,115 +87,6 @@ def sample_data(date_data, s_data, i_data,r_data, d_data, window_size=1, samplin
     d_samples = d_samples.reshape(window_size, 1)
 
     return date_samples, s_samples, i_samples, r_samples, d_samples
-
-
-# 记录字典中的一些设置
-def dictionary_out2file(R_dic, log_fileout):
-    DNN_tools.log_string('Equation name for problem: %s\n' % (R_dic['eqs_name']), log_fileout)
-    DNN_tools.log_string('Network model of dealing with SIR: %s\n' % str(R_dic['model2SIRD']), log_fileout)
-    DNN_tools.log_string('Network model of dealing with parameters: %s\n' % str(R_dic['model2paras']), log_fileout)
-    if str.upper(R_dic['model2SIRD']) == 'DNN_FOURIERBASE':
-        DNN_tools.log_string('The input activate function for SIRD: %s\n' % '[sin;cos]', log_fileout)
-    else:
-        DNN_tools.log_string('The input activate function for SIRD: %s\n' % str(R_dic['actIn_Name2SIRD']), log_fileout)
-
-    DNN_tools.log_string('The hidden-layer activate function for SIRD: %s\n' % str(R_dic['act_Name2SIRD']), log_fileout)
-
-    if str.upper(R_dic['model2paras']) == 'DNN_FOURIERBASE':
-        DNN_tools.log_string('The input activate function for parameter: %s\n' % '[sin;cos]', log_fileout)
-    else:
-        DNN_tools.log_string('The input activate function for parameter: %s\n' % str(R_dic['actIn_Name2paras']), log_fileout)
-
-    DNN_tools.log_string('The hidden-layer activate function for parameter: %s\n' % str(R_dic['act_Name2paras']), log_fileout)
-
-    DNN_tools.log_string('hidden layers for SIR: %s\n' % str(R_dic['hidden2SIRD']), log_fileout)
-    DNN_tools.log_string('hidden layers for parameters: %s\n' % str(R_dic['hidden2para']), log_fileout)
-
-    if str.upper(R_dic['model2SIRD']) != 'DNN':
-        DNN_tools.log_string('The scale for frequency to SIR NN: %s\n' % str(R_dic['freq2SIRD']), log_fileout)
-        DNN_tools.log_string('Repeat the high-frequency scale or not for SIR-NN: %s\n' % str(R_dic['if_repeat_High_freq2SIRD']), log_fileout)
-    if str.upper(R_dic['model2paras']) != 'DNN':
-        DNN_tools.log_string('The scale for frequency to SIR NN: %s\n' % str(R_dic['freq2paras']), log_fileout)
-        DNN_tools.log_string('Repeat the high-frequency scale or not for para-NN: %s\n' % str(R_dic['if_repeat_High_freq2paras']), log_fileout)
-
-    DNN_tools.log_string('Init learning rate: %s\n' % str(R_dic['learning_rate']), log_fileout)
-    DNN_tools.log_string('Decay to learning rate: %s\n' % str(R_dic['lr_decay']), log_fileout)
-    DNN_tools.log_string('The type for Loss function: %s\n' % str(R_dic['loss_function']), log_fileout)
-
-    if (R_dic['optimizer_name']).title() == 'Adam':
-        DNN_tools.log_string('optimizer:%s\n' % str(R_dic['optimizer_name']), log_fileout)
-    else:
-        DNN_tools.log_string('optimizer:%s  with momentum=%f\n' % (R_dic['optimizer_name'], R_dic['momentum']), log_fileout)
-
-    DNN_tools.log_string(
-        'Initial penalty for difference of predict and true: %s\n' % str(R_dic['init_penalty2predict_true']), log_fileout)
-
-    DNN_tools.log_string('The model of regular weights and biases: %s\n' % str(R_dic['regular_weight_model']), log_fileout)
-
-    DNN_tools.log_string('Regularization parameter for weights and biases: %s\n' % str(R_dic['regular_weight']), log_fileout)
-
-    # DNN_tools.log_string('Size 2 training set: %s\n' % str(R_dic['size2train']), log_fileout)
-
-    # DNN_tools.log_string('Batch-size 2 training: %s\n' % str(R_dic['batch_size2train']), log_fileout)
-
-    # DNN_tools.log_string('Batch-size 2 testing: %s\n' % str(R_dic['batch_size2test']), log_fileout)
-
-# 记录字典中的一些设置
-def dictionary_out2file2(R_dic, log_fileout):
-    DNN_tools.log_string('Equation name for problem: %s\n' % (R_dic['eqs_name']), log_fileout)
-    DNN_tools.log_string('Network model of dealing with SIR: %s\n' % str(R_dic['sird_network']), log_fileout)
-    # DNN_tools.log_string('Network model of dealing with parameters: %s\n' % str(R_dic['model2paras']), log_fileout)
-    if str.upper(R_dic['sird_network']) == 'DNN_FOURIERBASE':
-        DNN_tools.log_string('The input activate function for SIRD: %s\n' % '[sin;cos]', log_fileout)
-    else:
-        DNN_tools.log_string('The input activate function for SIRD: %s\n' % str(R_dic['activateIn_sird']), log_fileout)
-
-    DNN_tools.log_string('The hidden-layer activate function for SIRD: %s\n' % str(R_dic['activate_sird']), log_fileout)
-
-    if str.upper(R_dic['params_network']) == 'DNN_FOURIERBASE':
-        DNN_tools.log_string('The input activate function for parameter: %s\n' % '[sin;cos]', log_fileout)
-    else:
-        DNN_tools.log_string('The input activate function for parameter: %s\n' % str(R_dic['activateIn_params']), log_fileout)
-
-    DNN_tools.log_string('The hidden-layer activate function for parameter: %s\n' % str(R_dic['activate_params']), log_fileout)
-
-    DNN_tools.log_string('hidden layers for SIR: %s\n' % str(R_dic['hidden_sird']), log_fileout)
-    DNN_tools.log_string('hidden layers for parameters: %s\n' % str(R_dic['hidden_params']), log_fileout)
-
-    if str.upper(R_dic['sird_network']) != 'DNN':
-        DNN_tools.log_string('The scale for frequency to SIR NN: %s\n' % str(R_dic['freq2SIRD']), log_fileout)
-        # DNN_tools.log_string('Repeat the high-frequency scale or not for SIR-NN: %s\n' % str(R_dic['if_repeat_High_freq2SIRD']), log_fileout)
-    if str.upper(R_dic['params_network']) != 'DNN':
-        DNN_tools.log_string('The scale for frequency to SIR NN: %s\n' % str(R_dic['freq2paras']), log_fileout)
-        # DNN_tools.log_string('Repeat the high-frequency scale or not for para-NN: %s\n' % str(R_dic['if_repeat_High_freq2paras']), log_fileout)
-
-    # DNN_tools.log_string('Init learning rate: %s\n' % str(R_dic['learning_rate']), log_fileout)
-    # DNN_tools.log_string('Decay to learning rate: %s\n' % str(R_dic['lr_decay']), log_fileout)
-    # DNN_tools.log_string('The type for Loss function: %s\n' % str(R_dic['loss_function']), log_fileout)
-
-    if R_dic['optimizer'] == 'Adam':
-        DNN_tools.log_string('optimizer:%s\n' % str(R_dic['optimizer']), log_fileout)
-    else:
-        DNN_tools.log_string('optimizer:%s  with momentum=%f\n' % (R_dic['optimizer'], R_dic['momentum']), log_fileout)
-
-    # if R_dic['activate_stop'] != 0:
-    #     DNN_tools.log_string('activate the stop_step and given_step= %s\n' % str(R_dic['train_epoches']), log_fileout)
-    # else:
-    #     DNN_tools.log_string('no activate the stop_step and given_step = default: %s\n' % str(R_dic['train_epoches']), log_fileout)
-
-    DNN_tools.log_string(
-        'Initial penalty for difference of predict and true: %s\n' % str(R_dic['init_penalty2predict_true']), log_fileout)
-
-    # DNN_tools.log_string('The model of regular weights and biases: %s\n' % str(R_dic['regular_weight_model']), log_fileout)
-
-    DNN_tools.log_string('Regularization parameter for weights and biases: %s\n' % str(R_dic['regular_weight']), log_fileout)
-
-    # DNN_tools.log_string('Size 2 training set: %s\n' % str(R_dic['size2train']), log_fileout)
-
-    # DNN_tools.log_string('Batch-size 2 training: %s\n' % str(R_dic['batch_size2train']), log_fileout)
-
-    # DNN_tools.log_string('Batch-size 2 testing: %s\n' % str(R_dic['batch_size2test']), log_fileout)
-
 
 def compute_mse_res(data_obs, nn_predict):
     point_ERR2I = np.square(nn_predict - data_obs)
