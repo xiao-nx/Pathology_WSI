@@ -15,6 +15,7 @@ import pandas as pd
 
 import dataUtils
 import modelUtils
+import matplotlib.pyplot as plt
 
 # tf2兼容tf1
 tf.compat.v1.disable_eager_execution()
@@ -47,7 +48,7 @@ parser.add_argument('--eqs_name', type=str, default='SIRD',
 parser.add_argument('--batach_size', type=int, default=16,
                     help='.')
 
-parser.add_argument('--sample_method', type=str, default='sequential_sort',
+parser.add_argument('--sample_method', type=str, default='rand_sample_sort',
                     help='. : random_sample, rand_sample_sort, sequential_sort')
 
 parser.add_argument('--sird_network', type=str, default='DNN_FOURIERBASE',
@@ -203,10 +204,10 @@ def solve_SIRD2COVID(params):
             # Remark: beta, gamma,S_NN.I_NN,R_NN都应该是正的. beta.1--15之间，gamma在(0,1）使用归一化的话S_NN.I_NN,R_NN都在[0,1)范围内
             # 在归一化条件下: 如果总的“人口”和归一化"人口"的数值一致，这样的话，归一化后的数值会很小
             # tf.square(), tf.tanh(), tf.nn.relu(), tf.abs(), modelUtils.gauss()
-            # beta = tf.square(in_beta)
-            beta = tf.nn.sigmoid(in_beta)
+            beta = tf.square(in_beta)
+            # beta = tf.nn.sigmoid(in_beta)
             gamma = tf.nn.sigmoid(in_gamma)
-            mu = tf.nn.sigmoid(in_mu)
+            mu = 0.1 * tf.nn.sigmoid(in_mu)
             
             S_NN = tf.nn.sigmoid(SNN_temp)
             I_NN = tf.nn.sigmoid(INN_temp)
@@ -222,7 +223,7 @@ def solve_SIRD2COVID(params):
             # 微分方程
             with tf.name_scope('ODEs'):
                 temp_snn2t = - (beta*S_NN*I_NN) / (S_NN + I_NN)
-                temp_inn2t = - (beta*S_NN*I_NN) / (S_NN + I_NN) - gamma * I_NN -mu * I_NN
+                temp_inn2t = - (beta*S_NN*I_NN) / (S_NN + I_NN) - gamma * I_NN - mu * I_NN
                 temp_rnn2t = gamma *I_NN
                 temp_dnn2t = mu * I_NN
 
@@ -284,20 +285,20 @@ def solve_SIRD2COVID(params):
             regular_WB2Gamma = regular_func(Weight2gamma, Bias2gamma)
             regular_WB2Mu = regular_func(Weight2mu, Bias2mu) 
 
-            PWB2S = params['regular_weight'] * regular_WB2S
-            PWB2I = params['regular_weight'] * regular_WB2I
-            PWB2R = params['regular_weight'] * regular_WB2R
-            PWB2D = params['regular_weight'] * regular_WB2D
-            PWB2Beta = params['regular_weight'] * regular_WB2Beta
-            PWB2Gamma = params['regular_weight'] * regular_WB2Gamma
-            PWB2Mu = params['regular_weight'] * regular_WB2Mu
+            PWB2S = FLAGS.regular_weight * regular_WB2S
+            PWB2I = FLAGS.regular_weight * regular_WB2I
+            PWB2R = FLAGS.regular_weight * regular_WB2R
+            PWB2D = FLAGS.regular_weight * regular_WB2D
+            PWB2Beta = FLAGS.regular_weight * regular_WB2Beta
+            PWB2Gamma = FLAGS.regular_weight * regular_WB2Gamma
+            PWB2Mu = FLAGS.regular_weight * regular_WB2Mu
 
             # 定义loss
             with tf.name_scope('loss'):
                 Loss2S = Loss2dS + PWB2S
                 # Loss2S = predict_true_penalty * LossS_Net_obs + Loss2dS + PWB2S
-                Loss2I = Loss2dI + PWB2I
-                # Loss2I = predict_true_penalty * LossI_Net_obs + Loss2dI + PWB2I
+                # Loss2I = Loss2dI + PWB2I
+                Loss2I = predict_true_penalty * LossI_Net_obs + Loss2dI + PWB2I
                 Loss2R = Loss2dR + PWB2R
                 # Loss2R = predict_true_penalty * LossR_Net_obs + Loss2dR + PWB2R
                 Loss2D = Loss2dD + PWB2D
@@ -319,13 +320,13 @@ def solve_SIRD2COVID(params):
 
     loss_s_all, loss_i_all, loss_r_all, loss_d_all, loss_all = [], [], [], [], []
 
-    test_epoch = []
+    # test_epoch = []
     test_mse2S_all, test_rel2S_all = list(), list()
     test_mse2I_all, test_rel2I_all = list(), list()
     test_mse2R_all, test_rel2R_all = list(), list()
     test_mse2D_all, test_rel2D_all = list(), list()
 
-    data_list = dataUtils.load_data(params['data_fname'], N=3450000)
+    data_list = dataUtils.load_data(FLAGS.data_fname, N=3450000)
     date, data2S, data2I, data2R, data2D, *_ = data_list
 
     # 是否归一化数据，取决于normalFactor的值
@@ -343,40 +344,39 @@ def solve_SIRD2COVID(params):
     config = tf.compat.v1.ConfigProto(allow_soft_placement=True)  # 创建sess的时候对sess进行参数配置
     config.gpu_options.allow_growth = True                        # True是让TensorFlow在运行过程中动态申请显存，避免过多的显存占用。
     config.allow_soft_placement = True                            # 当指定的设备不存在时，允许选择一个存在的设备运行。比如gpu不存在，自动降到cpu上运行
-
+    # 对学习率进行指数衰减
     learning_rate = tf.compat.v1.train.exponential_decay(learning_rate = FLAGS.initial_learning_rate,
-                                                         global_step = global_steps,
-                                                         decay_steps = DECAY_STEPS,
-                                                         decay_rate = DECAY_RATE,
-                                                         staircase = True)
-
+                                                        global_step = global_steps,
+                                                        decay_steps = DECAY_STEPS,
+                                                        decay_rate = DECAY_RATE,
+                                                        staircase = False)
+    lr_list = list()
+    # 某一范围内指定一个值
     # Multiply the penalty decay rate by 0.1 at 100, 150, and 200 epochs.
-    boundaries = [int(params['train_epoches'] / 10), int(params['train_epoches'] / 5), int(params['train_epoches'] / 4),\
-                  int(params['train_epoches'] / 2), int(3 * params['train_epoches'] / 4)]
+    boundaries = [int(FLAGS.train_epoches / 10), int(FLAGS.train_epoches / 5), int(FLAGS.train_epoches / 4),\
+                int(FLAGS.train_epoches / 2), int(3 * FLAGS.train_epoches / 4)]
     values_arr = [1, 10, 50, 100, 200, 500]
-    # boundaries = [int(batches_per_epoch * epoch) for epoch in boundaries_arr]
     values = [params['init_penalty2predict_true'] * decay for decay in values_arr]    
-    predict_true_penalty = tf.compat.v1.train.piecewise_constant(
+    temp_predict_true_penalty = tf.compat.v1.train.piecewise_constant(
                                 tf.cast(global_steps, tf.int32), boundaries, values)
-
     # Training   
     with tf.compat.v1.Session(config=config) as sess:
         sess.run(tf.compat.v1.global_variables_initializer())
-        best_ckpt_saver = checkmate.BestCheckpointSaver(save_dir=os.path.join(params['FolderName'], './models'),
-                                            num_to_keep=3,
-                                            maximize=False)
-
-        for epoch in range(params['train_epoches'] + 1):
+        # best_ckpt_saver = checkmate.BestCheckpointSaver(save_dir=os.path.join(params['FolderName'], './models'),
+                                            # num_to_keep=3,
+                                            # maximize=False)
+        for epoch in range(FLAGS.train_epoches):
             t_batch, s_obs, i_obs, r_obs, d_obs = \
                 dataUtils.sample_data(train_date, train_data2s, train_data2i, train_data2r, train_data2d,
-                                        window_size=params['batach_size'], sampling_opt=params['sample_method'])
+                                        window_size=FLAGS.batach_size, sampling_opt=params['sample_method'])
+            in_learning_rate = sess.run(learning_rate, feed_dict={global_steps:epoch})
+            lr_list.append(in_learning_rate)
+            predict_true_penalty = sess.run(temp_predict_true_penalty, feed_dict={global_steps:epoch}) 
 
-            _, loss_s, loss_i, loss_r, loss_d, loss, pwb2s, pwb2e, pwb2i, pwb2r = sess.run(
+            _, loss_s, loss_i, loss_r, loss_d, loss, pwb2s, pwb2i, pwb2r, pwb2d = sess.run(
                 [train_Losses, Loss2S, Loss2I, Loss2R, Loss2D, Loss, PWB2S, PWB2I, PWB2R, PWB2D],
                 feed_dict={T_it: t_batch, S_observe: s_obs, I_observe: i_obs, R_observe: r_obs, D_observe: d_obs})
-            in_learning_rate = sess.run(learning_rate, feed_dict={global_steps:epoch})
-            in_predict_true_penalty = sess.run(predict_true_penalty, feed_dict={global_steps:epoch})            
-            
+
             loss_s_all.append(loss_s)
             loss_i_all.append(loss_i)
             loss_r_all.append(loss_r)
@@ -392,10 +392,10 @@ def solve_SIRD2COVID(params):
                     [S_NN, I_NN, R_NN, D_NN], feed_dict={T_it: np.reshape(test_date, [-1, 1])})
                 beta2test, gamma2test, mu2test = sess.run(
                     [beta, gamma, mu], feed_dict={T_it: np.reshape(test_date, [-1, 1])})
-                
+                print(beta2test,'--', gamma2test,'--', mu2test)
                 # best_ckpt_saver.handle(mse_average, sess, global_steps) 
 
-                test_epoch.append(epoch / 10000)
+                # test_epoch.append(epoch / 1000)
 
                 test_mse2S, test_rel2S = dataUtils.compute_mse_res(s_nn2test, test_data2s)
                 test_mse2I, test_rel2I = dataUtils.compute_mse_res(i_nn2test, test_data2i)
@@ -417,10 +417,10 @@ def solve_SIRD2COVID(params):
                     mse_lowest = mse_average
                     if epoch > 100000:
                         # 把groud truth 和 predict数据存储在csv文件里
-                        data_dic = {'train_data2s': train_data2s, 's_nn2test': np.squeeze(s_nn2test),
-                                    'train_data2i': train_data2i, 'i_nn2test': np.squeeze(i_nn2test),
-                                    'train_data2r': train_data2r, 'r_nn2test': np.squeeze(r_nn2test),
-                                    'train_data2d': train_data2d, 'd_nn2test': np.squeeze(d_nn2test)
+                        data_dic = {'test_data2s': test_data2s, 's_nn2test': np.squeeze(s_nn2test),
+                                    'test_data2i': test_data2i, 'i_nn2test': np.squeeze(i_nn2test),
+                                    'test_data2r': test_data2r, 'r_nn2test': np.squeeze(r_nn2test),
+                                    'test_data2d': test_data2d, 'd_nn2test': np.squeeze(d_nn2test)
                         }
                         data_df = pd.DataFrame.from_dict(data_dic)
                         data_df.to_csv(params['FolderName'] + '/sird_results.csv', index = False)
@@ -434,20 +434,25 @@ def solve_SIRD2COVID(params):
                         loss_dic = {'loss_s':loss_s_all,
                                     'loss_i':loss_i_all,
                                     'loss_r':loss_r_all,
-                                    'loss_d':loss_d_all}
+                                    'loss_d':loss_d_all,
+                                    'lr': lr_list}
                         loss_df = pd.DataFrame.from_dict(loss_dic)
                         loss_df.to_csv(params['FolderName'] + '/loss_results.csv', index = False)
 
                         break 
+        
+    # plt.figure(1)
+    # plt.plot(range(FLAGS.train_epoches), lr_list, 'r-')
+    # plt.savefig('learning_rate.png')
 
 def main(unused_argv):
     # Using the Winograd non-fused algorithms provides a small performance boost.
     os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
 
-    params={'data_fname': FLAGS.data_fname,
+    params={ #'data_fname': FLAGS.data_fname,
             'output_dir': FLAGS.output_dir,
             'optimizer': FLAGS.optimizer,
-            'train_epoches': FLAGS.train_epoches,
+            #'train_epoches': FLAGS.train_epoches,
             'eqs_name': FLAGS.eqs_name,
             'batach_size': FLAGS.batach_size,
             'sample_method': FLAGS.sample_method,
@@ -498,7 +503,7 @@ def main(unused_argv):
     # params['batch_size2test'] = 10 
     # ------------------------------------  神经网络的设置  ----------------------------------------
     # 是否开启阶段调整边界惩罚项 , 0 代表不调整，非 0 代表调整
-    if (params['activate_stage_penalty'] == True):
+    if FLAGS.activate_stage_penalty == True:
         params['init_penalty2predict_true'] = 50   # Regularization parameter for boundary conditions
     else:
         params['init_penalty2predict_true'] = 1

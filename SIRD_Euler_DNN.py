@@ -6,10 +6,10 @@ import time
 import platform
 import shutil
 import modelUtils
-import DNN_tools
-import DNN_data
-import plotData
-import saveData
+# import DNN_tools
+# import DNN_data
+# import plotData
+# import saveData
 
 import dataUtils
 import modelUtils
@@ -28,10 +28,10 @@ DECAY_RATE = 0.8
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--clean_model_dir', action='store_true',
-                    help='Whether to clean up the model directory if present.')
-
 parser.add_argument('--data_fname', type=str, default='./data/minnesota3.csv',
+                    help='data path')
+
+parser.add_argument('--output_dir', type=str, default='./output_SIRD',
                     help='data path')
 
 parser.add_argument('--train_epoches', type=int, default=200000,
@@ -217,8 +217,8 @@ def solve_SIRD2COVID(params):
 
             Loss = Loss2dS + Loss2dI + Loss2dR + Loss2dD + PWB2Beta + PWB2Gamma + PWB2Mu
 
-            my_optimizer = tf.compat.v1.train.AdamOptimizer(in_learning_rate)
-            train_Losses = my_optimizer.minimize(Loss, global_step=global_steps)
+            optimizer = tf.compat.v1.train.AdamOptimizer(in_learning_rate)
+            train_Losses = optimizer.minimize(Loss, global_step=global_steps)
 
     loss_s_all, loss_i_all, loss_r_all, loss_d_all, loss_all = [], [], [], [], []
 
@@ -232,15 +232,15 @@ def solve_SIRD2COVID(params):
     date, data2S, data2I, data2R, data2D, *_ = data_list
 
     # 是否归一化数据，取决于normalFactor的值
-    train_data, test_data = DNN_data.split_data(date, data2S, data2I, data2R, data2D, train_size=1.0, normalFactor=params['normalize_population'])
+    train_data, test_data = dataUtils.split_data(date, data2S, data2I, data2R, data2D, train_size=1.0, normalFactor=params['normalize_population'])
     # 按顺序取出列表中的数据
     train_date, train_data2s, train_data2i, train_data2r, train_data2d, *_ = train_data
     # test_date, test_data2s, test_data2i, test_data2r, test_data2d, *_ = test_data
     test_date, test_data2s, test_data2i, test_data2r, test_data2d, *_ = train_data  
 
     # 对于时间数据来说，验证模型的合理性，要用连续的时间数据验证.
-    batchSize_test = len(train_data)
-    test_t_bach = DNN_data.sample_testDays_serially(test_date, batchSize_test)
+    # batchSize_test = len(train_data)
+    # test_t_bach = DNN_data.sample_testDays_serially(test_date, batchSize_test)
 
     # ConfigProto 加上allow_soft_placement=True就可以使用 gpu 了
     config = tf.compat.v1.ConfigProto(allow_soft_placement=True)  # 创建sess的时候对sess进行参数配置
@@ -250,7 +250,7 @@ def solve_SIRD2COVID(params):
         sess.run(tf.compat.v1.global_variables_initializer())
         for i_epoch in range(params['max_epoch'] + 1):
             t_batch, s_obs, i_obs, r_obs, d_obs = \
-                DNN_data.sample_data(train_date, train_data2s, train_data2i, train_data2r, train_data2d,
+                dataUtils.sample_data(train_date, train_data2s, train_data2i, train_data2r, train_data2d,
                                         window_size=7, sampling_opt=params['opt2sample'])
             _, loss_s, loss_i, loss_r, loss_d, loss, pwb2beta, pwb2gamma, pwb2mu = sess.run(
                 [train_Losses, Loss2dS, Loss2dI, Loss2dR, Loss2dD, Loss, PWB2Beta, PWB2Gamma, PWB2Mu],
